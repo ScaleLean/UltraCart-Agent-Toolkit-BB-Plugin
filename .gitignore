@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.DS_Store
+
+.toolkit/
+.env
+.env.*
+!.env.example
+*.tgz
+*.log
+*.pem
+*.key
+coverage/

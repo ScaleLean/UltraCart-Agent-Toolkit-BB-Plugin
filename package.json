@@ -1,0 +1,13 @@
+{
+  "name": "ultracart-bb-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "check": "npm --prefix bb-plugin-storefront run typecheck",
+    "build": "node scripts/bb.mjs plugin build bb-plugin-storefront",
+    "install:bb": "node scripts/bb.mjs plugin install ./bb-plugin-storefront --yes",
+    "reload:bb": "node scripts/bb.mjs plugin reload storefront",
+    "test": "npm run build && node --experimental-strip-types --test bb-plugin-storefront/tests/*.test.ts bb-plugin-storefront/tests/*.test.mjs"
+  },
+  "type": "module"
+}
