@@ -10,7 +10,8 @@ A native BB Storefront plugin. It adds **Storefront** to navigation and **Storef
 4. Agent handoff: BB's native new-chat composer and embedded conversation, with scoped discovery and local draft tools.
 5. Draft and review: pull existing page containers, edit existing string configuration fields, save locally, compare baseline changes, validate, and detect remote changes.
 6. Data warehouse: discover tables and fields, prepare bounded SQL, review scan estimates, and explicitly execute a query.
-7. Heatmaps: page-scoped click and movement intensity, scroll quartiles, and selector-to-widget lookup.
+7. Page traffic: a searchable page hierarchy with distinct sessions per page for the last 30 completed UTC days, including zero-session pages.
+8. Heatmaps: page-scoped click and movement intensity, scroll quartiles, and selector-to-widget lookup.
 
 The connection runs on the **BB server machine** using an explicitly configured Node executable and toolkit CLI entry. Remote BB execution machines are not supported by this slice. The UI names the execution machine. Draft editing stays local to BB. Publishing is not implemented.
 
@@ -51,6 +52,18 @@ Queries accept one SELECT/WITH statement without comments or semicolons. Output 
 The page's **Heatmaps** panel reads existing aggregated warehouse data for its exact host and normalized path, device, and up to 31 UTC calendar days. It shows top elements by clicks, pointer movement counts, and scroll quartiles. The query includes partition and event-date filters. Preview is a dry run; execution is explicit and capped at 1 GiB. Heatmap rows do not represent unique visitors. Spatial overlays and recording enablement are not implemented. Historical selectors can differ from the current theme.
 
 Warehouse calls have a 120-second local timeout. A timeout does not prove the remote job stopped; check BigQuery before retrying. No automatic retries occur.
+
+## Page traffic
+
+**Workspace → Page traffic** joins current warehouse page records to distinct analytics sessions. It uses page IDs and parent page IDs for hierarchy, with search that keeps ancestors visible, expandable branches, sibling traffic sorting, and a zero-session filter. Missing parents or cycles remain visible as roots with a warning.
+
+The reporting window is the last 30 completed UTC days, filtered by session start date. Each count represents distinct sessions that viewed that page. Repeated views count once; sessions across several pages can count in several rows. Parent counts describe the parent page itself, not branch totals. The separate host total is computed from distinct session IDs.
+
+The query restricts page records to the selected storefront ID and page-view URLs to its exact host. It excludes sessions flagged as bots. URLs are matched after query strings, fragments, `index.html`, and trailing slashes are normalized; path case remains significant. Aliases are excluded. Multiple catalog records for one normalized path share its count and are labeled. Recorded paths absent from the current catalog are reported separately. No visitor identifiers are returned.
+
+Load or Refresh checks the estimate and runs the fixed query under a 1 GiB ceiling. All pages are returned in one array to avoid the toolkit's 100-row display limit. Results exceeding 10,000 pages or returning incomplete data are rejected. The latest successful snapshot is stored in BB's plugin database for each profile/merchant/storefront/host. Opening the section reads this cache without running a query. Failed refreshes keep the previous snapshot and show the error. A zero count is not proof of complete tracking coverage.
+
+Live schema fields were verified. The first live traffic pull was blocked by Google reauthentication, so real traffic totals remain unverified. Fixture tests cover hierarchy, date boundaries, session parsing, cache persistence, concurrent refreshes, and stale scope rejection.
 
 ## Local development
 

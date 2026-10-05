@@ -8,6 +8,7 @@ import { createDraftFeature } from './draft-service';
 import { fieldEditSchema } from './draft-contract';
 import { createWarehouseFeature } from './warehouse-service';
 import { createHeatmapFeature } from './heatmap-service';
+import { createPageTrafficFeature } from './traffic-service';
 
 export default function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
@@ -98,6 +99,7 @@ export default function plugin(bb: BbPluginApi) {
     ...draftFeature.handlers,
     ...createWarehouseFeature({ bb, service, selected }),
     ...createHeatmapFeature({ bb, service, selected }),
+    ...createPageTrafficFeature({ bb, service, selected }),
     connectionStatus: async () => {
       const selection = await saved();
       try {

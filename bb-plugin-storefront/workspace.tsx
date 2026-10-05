@@ -11,6 +11,7 @@ import { conversationRequest } from './conversation';
 import { DraftPanel } from './draft-panel';
 import { WarehousePanel } from './warehouse-panel';
 import { HeatmapPanel } from './heatmap-panel';
+import { TrafficPanel } from './traffic-panel';
 
 export function StorefrontWorkspace() {
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -22,13 +23,16 @@ export function StorefrontWorkspace() {
 }
 
 function ConnectedWorkspace({ selection }: { selection: Selection }) {
-  const [view, setView] = useState<'pages' | 'warehouse'>('pages');
+  const [view, setView] = useState<'pages' | 'traffic' | 'warehouse'>('pages');
+  const [trafficOpened, setTrafficOpened] = useState(false);
   return <>
     <nav className="uc-store-views" aria-label="Store workspace">
       <button type="button" aria-pressed={view === 'pages'} onClick={() => setView('pages')}>Pages & changes</button>
+      <button type="button" aria-pressed={view === 'traffic'} onClick={() => { setTrafficOpened(true); setView('traffic'); }}>Page traffic</button>
       <button type="button" aria-pressed={view === 'warehouse'} onClick={() => setView('warehouse')}>Data warehouse</button>
     </nav>
     <div hidden={view !== 'pages'}><PageWorkspace selection={selection} /></div>
+    {trafficOpened && <div hidden={view !== 'traffic'}><TrafficPanel selection={selection} /></div>}
     {view === 'warehouse' && <WarehousePanel selection={selection} />}
   </>;
 }

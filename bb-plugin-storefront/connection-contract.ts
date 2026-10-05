@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { draftRpcMethods } from './draft-contract';
 import { warehouseRpcMethods } from './warehouse-contract';
 import { heatmapRpcMethods } from './heatmap-contract';
+import { trafficRpcMethods } from './traffic-contract';
 
 export const profileSelector = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/);
 export const profileSchema = z.object({ id: z.string(), name: z.string(), merchantId: z.string().nullable() });
@@ -33,6 +34,7 @@ export const rpcContract = defineRpcContract({
   ...draftRpcMethods,
   ...warehouseRpcMethods,
   ...heatmapRpcMethods,
+  ...trafficRpcMethods,
   connectionStatus: { input: z.null(), output: z.object({ ready: z.boolean(), version: z.string().nullable(), machine: z.string(), profiles: z.array(profileSchema), selection: selectionSchema.nullable(), verified: z.boolean(), message: z.string() }) },
   beginLogin: { input: z.object({ profile: profileSelector }).strict(), output: loginSchema },
   loginStatus: { input: z.object({ id: z.string() }).strict(), output: loginSchema },
