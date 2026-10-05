@@ -16,7 +16,7 @@ test('RPC rejects stale store selection; agent tools retain their conversation s
     plugin(bb);
     const context={pluginMetadata:{selection,pagePath:'/about/'},thread:{id:'thread-1',title:'About',parentThreadId:null,sourceThreadId:null},project:{id:'project-1',kind:'standard',name:'Test',gitRemoteUrl:null},environment:{id:'env-1',name:null,path:null,branchName:null,workspaceProvisionType:null},host:{id:'host-1',name:'Local'},provider:{id:'codex',model:'test',capabilities:{supportsNativeUserQuestion:false}},origin:{kind:null,pluginId:'storefront'}};
     const configured=await harness.behavior.resolveAgentConfiguration(context);
-    assert.equal(configured.tools.length,3);
+    assert.equal(configured.tools.length,7);
     assert.equal((await harness.behavior.resolveAgentConfiguration({...context,pluginMetadata:{}})).tools.length,0);
     await bb.storage.kv.set('connection',selection);
     await assert.rejects(harness.behavior.callRpc('readPage',{selection:{...selection,verifiedAt:'old'},path:'/about/'}),/selected store changed/);
@@ -26,5 +26,8 @@ test('RPC rejects stale store selection; agent tools retain their conversation s
     const tool=await harness.behavior.callAgentTool('storefront_read_page',{}, {threadId:'thread-1',projectId:'project-1'});
     assert.match(JSON.stringify(tool),/About/);
     assert.doesNotMatch(JSON.stringify(tool),/999/);
+    const draft=await harness.behavior.callAgentTool('storefront_read_draft',{slot:'body'}, {threadId:'thread-1',projectId:'project-1'});
+    assert.match(JSON.stringify(draft),/null/);
+    await assert.rejects(harness.behavior.callRpc('readDraft',{selection,path:'/about/',slot:'body'}),/selected store changed/);
   } finally {await harness.lifecycle.dispose();await rm(root,{recursive:true,force:true});}
 });

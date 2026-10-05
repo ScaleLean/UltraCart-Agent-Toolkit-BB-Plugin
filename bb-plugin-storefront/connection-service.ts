@@ -34,6 +34,11 @@ export function parseStorefronts(value: unknown): { merchantId: string; storefro
   return { merchantId: result.merchantId, storefronts };
 }
 export function safeFailure(text: string) {
+  if (/bq is not installed|bq.*not on PATH/i.test(text)) return 'BigQuery setup is missing. Install Google Cloud SDK and make bq available on the BB server PATH.';
+  if (/over the .*ceiling|maximum.bytes.billed|bytes billed.*exceed/i.test(text)) return 'The query exceeds its scan ceiling. Narrow the date range or add a partition filter, then preview again.';
+  if (/outside the warehouse/i.test(text)) return 'The query reads outside the allowed warehouse datasets. Use this merchant’s ultracart_dw or ultracart_dw_streaming datasets.';
+  if (/access denied.*(bigquery|dataset|table)|bigquery.*permission|does not have bigquery/i.test(text)) return 'The Google identity on the BB server cannot read this warehouse. Check its BigQuery permissions and dataset grants.';
+  if (/reauthentication|gcloud auth login|no active account|credentials.*(expired|invalid)/i.test(text)) return 'Google Cloud needs sign-in on the BB server. Sign in for bq, then preview the query again.';
   if (/rate.limit|429/i.test(text)) return 'UltraCart rate limited the request. Wait at least one minute before retrying.';
   if (/locked|keychain|credential store|native_binding/i.test(text)) return 'The OS credential store is unavailable or locked. Unlock it, then try again.';
   if (/access_denied|authorization_declined/i.test(text)) return 'Authorization was declined. You can start again when ready.';
@@ -65,37 +70,45 @@ export class ConnectionService {
       stdio: 'pipe' as const,
     } };
   }
-  async run(args: string[]): Promise<string> {
+  async run(args: string[], options: { acceptedExitCodes?: number[] } = {}): Promise<string> {
     if (this.loginChild || this.login?.phase === 'starting') throw new Error('Another toolkit request is in progress. Finish or cancel it first.');
     if (this.pending >= 12) throw new Error('The toolkit is busy. Wait for the current requests to finish.');
     const previous = this.queue;
     let release!: () => void;
     this.queue = new Promise<void>(resolve => { release = resolve; });
     this.pending++;
-    try { await previous; return await this.runNow(args); }
+    try { await previous; return await this.runNow(args, options.acceptedExitCodes || [0]); }
     finally { this.pending--; release(); }
   }
-  private async runNow(args: string[]): Promise<string> {
+  async validateLocal(file: string): Promise<string> {
+    if (!isAbsolute(file)) throw new Error('Validation requires an internal absolute file path.');
+    return this.run(['--format', 'json', 'validate', file, '--limit', '100'], { acceptedExitCodes: [0, 2] });
+  }
+  private async runNow(args: string[], acceptedExitCodes: number[]): Promise<string> {
     if (this.busy || this.loginChild) throw new Error('Another toolkit request is in progress. Finish or cancel it first.');
     this.busy = true;
     try {
       const invocation = await this.command(args);
       if (this.disposed) throw new Error('The plugin reloaded. Refresh this panel.');
       return await new Promise<string>((resolve, reject) => {
-        const child = spawn(invocation.command, invocation.args, invocation.options);
+        const child = spawn(invocation.command, invocation.args, { ...invocation.options, detached: process.platform !== 'win32' });
         this.children.add(child);
+        const warehouse = args.includes('warehouse') && args.includes('query');
         let stdout = '', stderr = '', finished = false;
         const finish = (error?: Error) => {
           if (finished) return;
           finished = true; clearTimeout(timer); this.children.delete(child);
           if (error) reject(error); else resolve(stdout.trim());
         };
-        const timer = setTimeout(() => { child.kill('SIGKILL'); finish(new Error('The toolkit request timed out. Try again when the connection is available.')); }, 30000);
+        const timer = setTimeout(() => {
+          this.stopChild(child);
+          finish(new Error(warehouse ? 'The warehouse request timed out. Its remote job may still run; completion is unverified. Check BigQuery before retrying.' : 'The toolkit request timed out. Try again when the connection is available.'));
+        }, warehouse ? 120000 : 30000);
         child.stdin.end();
-        child.stdout.on('data', chunk => { stdout += chunk; if (stdout.length > LIMIT) { child.kill('SIGKILL'); finish(new Error('The toolkit response exceeded the size limit.')); } });
+        child.stdout.on('data', chunk => { stdout += chunk; if (stdout.length > LIMIT) { this.stopChild(child); finish(new Error('The toolkit response exceeded the size limit.')); } });
         child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-LIMIT); });
         child.on('error', () => finish(new Error('The toolkit could not start. Check Node 24 and the CLI path in plugin settings.')));
-        child.on('close', code => finish(code === 0 ? undefined : new Error(safeFailure(stderr + stdout))));
+        child.on('close', code => finish(code !== null && acceptedExitCodes.includes(code) ? undefined : new Error(safeFailure(stderr + stdout))));
       });
     } finally { this.busy = false; }
   }
@@ -191,7 +204,13 @@ export class ConnectionService {
   dispose() {
     this.disposed = true;
     if (this.loginTimer) clearTimeout(this.loginTimer);
-    for (const child of this.children) child.kill('SIGKILL');
+    for (const child of this.children) this.stopChild(child);
     this.children.clear(); this.login = null; this.loginChild = null;
+  }
+  private stopChild(child: ChildProcessWithoutNullStreams) {
+    if (process.platform !== 'win32' && child !== this.loginChild && child.pid) {
+      try { process.kill(-child.pid, 'SIGKILL'); return; } catch { /* The process group may have already exited. */ }
+    }
+    child.kill('SIGKILL');
   }
 }

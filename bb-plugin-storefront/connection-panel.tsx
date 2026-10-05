@@ -92,13 +92,18 @@ export function ConnectionPanel({ onSelection }: { onSelection?: (selection: Sel
     });
   }
   const connection = status?.selection;
-  return <section className="uc-connect" aria-labelledby={`${uid}-title`}>
-    <div className="uc-connect-heading"><div><p className="uc-eyebrow">YOUR STOREFRONT</p><h2 id={`${uid}-title`}>{connection ? connection.storefront.host : 'Connect your store'}</h2><p>{connection ? `Merchant ${connection.merchantId} · Storefront ${connection.storefront.id}` : 'Sign in to UltraCart, then choose the storefront you want to work on.'}</p></div>
-      <Button variant={connection ? 'outline' : 'default'} onClick={() => setExpanded(v => !v)} aria-expanded={expanded} disabled={busy || waiting}>{expanded ? 'Close' : connection ? 'Manage connection' : 'Connect storefront'}</Button>
+  return <section className={`uc-connect${connection ? ' uc-connect-connected' : ''}${connection && !expanded ? ' uc-connect-collapsed' : ''}`} aria-labelledby={`${uid}-title`}>
+    <div className="uc-connect-heading"><div className={connection ? 'uc-connected-identity' : undefined}>
+      {connection ? <span className={`uc-dot ${status?.verified ? 'uc-connected-dot' : ''}`} aria-hidden="true" /> : <p className="uc-eyebrow">YOUR STOREFRONT</p>}
+      <h2 id={`${uid}-title`}>{connection ? connection.storefront.host : 'Connect your store'}</h2>
+      <p>{connection ? connection.merchantId : 'Sign in to UltraCart, then choose the storefront you want to work on.'}</p>
+      {connection && !status.ready && <span className="uc-connection-attention">Setup needed</span>}
     </div>
-    <div className="uc-connect-meta"><span className={`uc-dot ${status?.verified ? 'uc-connected-dot' : ''}`} /><span>{status === null ? 'Checking toolkit…' : !status.ready ? 'Setup needed' : connection ? status.verified ? 'Connection verified this session' : 'Saved store · access checked when pages load' : status.profiles.some(p => p.merchantId) ? 'Profile saved · choose a storefront below' : 'Ready to sign in'}</span>{status?.version && <span>Toolkit {status.version}</span>}</div>
+      <Button size={connection ? 'sm' : 'default'} variant={connection ? 'ghost' : 'default'} onClick={() => setExpanded(v => !v)} aria-expanded={expanded} aria-controls={`${uid}-controls`} disabled={busy || waiting}>{expanded ? connection ? 'Minimize' : 'Close' : connection ? 'Manage connection' : 'Connect storefront'}</Button>
+    </div>
+    {(!connection || expanded) && <div className="uc-connect-meta"><span className={`uc-dot ${status?.verified ? 'uc-connected-dot' : ''}`} /><span>{status === null ? 'Checking toolkit…' : !status.ready ? 'Setup needed' : connection ? status.verified ? 'Connection verified this session' : 'Saved store · access checked when pages load' : status.profiles.some(p => p.merchantId) ? 'Profile saved · choose a storefront below' : 'Ready to sign in'}</span>{connection && <span>Storefront {connection.storefront.id}</span>}{status?.version && <span>Toolkit {status.version}</span>}</div>}
     {error && <p className="uc-connect-error" role="alert">{error}</p>}
-    {expanded && <div className="uc-connect-content">
+    {expanded && <div id={`${uid}-controls`} className="uc-connect-content">
       {(!status || !status.ready) ? <><p>{status?.message || 'Checking the local toolkit installation…'}</p><Button variant="outline" disabled={busy} onClick={() => act(async () => { await loadStatus(); })}>Check again</Button></> : <>
         {connection && <div className="uc-saved-connection"><p>Last verified: {new Date(connection.verifiedAt).toLocaleString()}. Disconnecting clears this BB selection; your toolkit login stays in the OS keychain.</p><div className="uc-connect-actions"><Button variant="outline" size="sm" disabled={busy || waiting} onClick={() => act(async () => {
           setStatus(s => s ? {...s, verified:false} : s);

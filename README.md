@@ -7,9 +7,12 @@ A native BB Storefront plugin. It adds **Storefront** to navigation and **Storef
 1. Capability explorer: intent search, category filters, source references, command examples, and a local planning brief.
 2. Storefront connection: official toolkit device login, existing profile selection, storefront discovery, verified selection, and disconnect.
 3. Live workspace: searchable catalog pages, branch navigation, page metadata, shared-template impact, resolved template files, and live-page browser links.
-4. Agent handoff: BB's native new-chat composer and embedded conversation, with three read-only storefront tools and pinned page context.
+4. Agent handoff: BB's native new-chat composer and embedded conversation, with scoped discovery and local draft tools.
+5. Draft and review: pull existing page containers, edit existing string configuration fields, save locally, compare baseline changes, validate, and detect remote changes.
+6. Data warehouse: discover tables and fields, prepare bounded SQL, review scan estimates, and explicitly execute a query.
+7. Heatmaps: page-scoped click and movement intensity, scroll quartiles, and selector-to-widget lookup.
 
-The connection runs on the **BB server machine** using an explicitly configured Node executable and toolkit CLI entry. Remote BB execution machines are not supported by this slice. The UI names the execution machine. No store content editing is implemented.
+The connection runs on the **BB server machine** using an explicitly configured Node executable and toolkit CLI entry. Remote BB execution machines are not supported by this slice. The UI names the execution machine. Draft editing stays local to BB. Publishing is not implemented.
 
 ## Login
 
@@ -17,7 +20,7 @@ Open Storefront, choose **Connect storefront**, name a profile, and select **Sig
 
 After sign-in, available storefronts load automatically. Choose **Use storefront**. Existing profiles can use **Load storefronts** without signing in again. Store selection is checked against a fresh storefront list and merchant identity before saving. The workspace then reads the catalog, verifying access again.
 
-The toolkit owns OAuth and native credential storage. BB stores only the selected profile, merchant, storefront metadata, and verification time. Device URLs and codes exist only in memory while waiting. The wrapper never handles access/refresh tokens. Successful toolkit login changes its global current profile; this plugin always passes an explicit profile for remote reads.
+The toolkit owns OAuth and native credential storage. For the connection, BB stores the selected profile, merchant, storefront metadata, and verification time. Local drafts also store pulled container content and baselines in the plugin database. Device URLs and codes exist only in memory while waiting. The wrapper never handles access/refresh tokens. Successful toolkit login changes its global current profile; this plugin always passes an explicit profile for remote reads.
 
 **Disconnect storefront** clears BB's selection only. It does not revoke or delete the shared toolkit profile or its OS keychain login. Existing conversations retain their pinned context and tools. Logout is not implemented in this slice.
 
@@ -29,9 +32,25 @@ Selecting a page fetches fresh settings. **Resolve template files** asks UltraCa
 
 Choose **Understand this page**, **Find improvements**, or **Plan a change** to open BB's native composer. Select a provider and environment, edit the draft, then send. The first message includes fresh, verified merchant/store/page context. The new conversation is also available in BB's sidebar. Its target stays fixed when the panel selection changes.
 
-The agent receives `storefront_list_pages`, `storefront_read_page`, and `storefront_resolve_template`. These run on the BB server. They do not require the toolkit to be installed on the agent's execution machine. Agent authentication remains separate from UltraCart authentication. The provider list is not an authentication check.
+The agent receives `storefront_list_pages`, `storefront_read_page`, and `storefront_resolve_template`, plus `storefront_read_draft`, `storefront_pull_draft`, `storefront_save_draft`, and `storefront_review_draft`. Draft tools always use the conversation’s pinned page. Open Draft & review and select Reload saved draft to see agent edits. These run on the BB server. They do not require the toolkit to be installed on the agent's execution machine. Agent authentication remains separate from UltraCart authentication. The provider list is not an authentication check.
 
 Catalog reads are bounded to 4 MiB and 10,000 records. Duplicate paths appear once with a warning and uncertain settings; selecting one reads the page directly. Missing visibility remains unknown. Read requests queue across BB windows, with a maximum of 12 outstanding commands. There are no automatic retries after an UltraCart error or rate limit.
+
+## Draft and review
+
+Choose a page, then **Draft & review**. Pull an existing container slot, normally `body`. The plugin retains the original CJSON and toolkit baseline in BB's plugin SQLite database. Editing supports existing string configuration fields, including translated and responsive values. Widget IDs and structure remain intact. Limits are 512 KiB per container, 100 fields, and 16 KiB per field.
+
+**Save and review** saves locally, validates with the toolkit, and pulls the current remote content to compare hashes. A valid local result is not proof of rendering or future publish readiness. Publishing and remote preview staging are not implemented. Revision checks prevent an older window or agent from overwriting a newer draft. Save before switching pages or tabs; unsaved editor values are not persistent. Existing saved drafts reopen automatically. Remote-change reconciliation and replacing a saved baseline are not yet implemented.
+
+## Warehouse and heatmaps
+
+**Data warehouse** operates on the merchant warehouse. Selecting a storefront does not automatically filter arbitrary SQL to that storefront. The BB server needs Google Cloud SDK `bq`, Google sign-in, and access to both warehouse datasets. UltraCart OAuth is separate. **Check setup** dry-runs a metadata query. Table and field discovery require explicit query execution after a dry run.
+
+Queries accept one SELECT/WITH statement without comments or semicolons. Output is limited to 100 rows; local `bq` settings can truncate it further. The scan ceiling defaults to 1 GiB and can be set up to 20 GiB. A reviewed query ticket expires in five minutes and can be used once. The last 50 warehouse audit events store query hashes and receipt metadata, without SQL or rows. Private temporary CLI audit files are removed after each request.
+
+The page's **Heatmaps** panel reads existing aggregated warehouse data for its exact host and normalized path, device, and up to 31 UTC calendar days. It shows top elements by clicks, pointer movement counts, and scroll quartiles. The query includes partition and event-date filters. Preview is a dry run; execution is explicit and capped at 1 GiB. Heatmap rows do not represent unique visitors. Spatial overlays and recording enablement are not implemented. Historical selectors can differ from the current theme.
+
+Warehouse calls have a 120-second local timeout. A timeout does not prove the remote job stopped; check BigQuery before retrying. No automatic retries occur.
 
 ## Local development
 
@@ -66,8 +85,8 @@ The feature checks the executable at runtime and reports missing setup. It does 
 
 Capability descriptions are curated from the private [UltraCart storefront-agent-toolchain](https://github.com/UltraCart/storefront-agent-toolchain), reviewed October 2, 2026. This is a subset, not automated capability detection.
 
-The 12 automated tests cover authentication boundaries, cancellation, safe errors, read queuing, large catalogs, duplicate paths, store/page identity checks, URL validation, pinned conversation scope, tool configuration, and preserving native composer options. The BB fake-host harness checks the real RPC and agent-tool registrations. Tests run with Node 22's TypeScript stripping; the actual UltraCart toolkit runs with the separately configured Node 24.
+Automated tests cover authentication boundaries, cancellation, safe errors, read queuing, large catalogs, duplicate paths, store/page identity checks, URL validation, pinned conversation scope, tool configuration, preserving native composer options, local draft revisions and baselines, bounded warehouse receipts and tickets, heatmap scope and filters, and structured validation failures. The BB fake-host harness checks the real RPC and agent-tool registrations. Tests run with Node 22's TypeScript stripping; the actual UltraCart toolkit runs with the separately configured Node 24.
 
-Live verification covered a large authenticated storefront catalog, direct page reads, template resolution, browser opening, and the native composer. A live model turn has not been sent as part of testing. Store content has not been changed. Merchant data and credentials are not included in this repository.
+Live verification covered a large authenticated storefront catalog, direct page reads, template resolution, browser opening, and the native composer. A live model turn has not been sent as part of testing. Local container pull and baseline review were verified against a connected storefront. Warehouse setup reported that Google Cloud sign-in was required; live analytical results have not been verified. No billed analytics queries or live store content changes were made during verification. Merchant data and credentials are not included in this repository.
 
 The **Capability guide** remains a separate planning surface. Its briefs are stored in this browser's local storage, not scoped to a merchant or synchronized across machines. They do not automatically include the selected store. Copying a brief never dispatches work. The live workspace's native composer is the context-aware handoff.

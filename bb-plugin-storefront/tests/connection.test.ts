@@ -60,3 +60,13 @@ test('process failure becomes a bounded safe UI error', async () => {
   try { await assert.rejects(f.service.storefronts('test-store'), error=>error instanceof Error && error.message.includes('needs sign-in') && !error.message.includes('do-not-expose')); }
   finally {await f.cleanup();}
 });
+
+test('structured failure output is opt-in for validation and widget lookup', async () => {
+  const f = await fixture(`const args=process.argv.slice(2); console.log(JSON.stringify({valid:false,diagnostics:[]})); process.exitCode=args.includes('validate')?2:1;`);
+  try {
+    await assert.rejects(f.service.run(['sf', 'locate']), /could not complete/);
+    assert.equal(JSON.parse(await f.service.run(['sf', 'locate'], {acceptedExitCodes:[0,1]})).valid, false);
+    assert.equal(JSON.parse(await f.service.validateLocal(join(tmpdir(),'draft.cjson'))).valid, false);
+    await assert.rejects(f.service.validateLocal('relative.cjson'), /absolute/);
+  } finally { await f.cleanup(); }
+});

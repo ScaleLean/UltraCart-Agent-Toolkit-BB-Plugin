@@ -1,0 +1,11 @@
+.uc-draft{padding:24px;max-width:1100px;color:var(--foreground)}
+.uc-draft header,.uc-draft-scope,.uc-draft-summary,.uc-draft-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.uc-draft header{justify-content:space-between;margin-bottom:20px}
+.uc-draft h3{font-size:18px;font-weight:600;margin:0 0 6px}.uc-draft p{font-size:13px;line-height:1.65;margin:10px 0}.uc-draft header>span,.uc-draft small,.uc-draft-summary{font-size:12px;color:var(--muted-foreground)}
+.uc-draft-scope label{display:flex;align-items:center;gap:10px;font-size:13px}.uc-draft-scope input{max-width:160px}.uc-draft-summary{padding:16px 0}.uc-draft code{font-size:12px;overflow-wrap:anywhere}
+.uc-draft-boundary{color:var(--muted-foreground)}.uc-draft-error{color:var(--destructive)}.uc-draft-empty{padding:20px 0}.uc-draft-baseline{margin-bottom:16px}
+.uc-draft details>summary{cursor:pointer;font-size:13px;line-height:1.6}.uc-draft-fields>details{border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}.uc-draft-fields summary span,.uc-draft-fields summary b{margin-left:10px}.uc-draft-fields summary b{font-size:11px;color:var(--muted-foreground)}
+.uc-draft-fields label{display:block;font-size:12px;margin:12px 0}.uc-draft textarea{display:block;width:100%;min-height:110px;resize:vertical;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--foreground);padding:10px;margin-top:6px;font:13px/1.5 monospace}.uc-draft textarea:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.uc-draft pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 monospace;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--muted);max-height:320px;overflow:auto}.uc-draft-actions{padding:12px 0}.uc-draft-actions>span{font-size:12px;color:var(--muted-foreground)}
+.uc-draft-review{border-top:1px solid var(--border);margin-top:20px;padding-top:20px}.uc-draft-change{margin-top:20px}.uc-draft-change h4{font-size:13px;font-weight:600}.uc-draft-change h5{font-size:12px;color:var(--muted-foreground);margin-bottom:6px}.uc-draft-change>div{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0}.uc-draft-change section{min-width:0}
+@media(max-width:700px){.uc-draft{padding:16px}.uc-draft-change>div{grid-template-columns:1fr}}

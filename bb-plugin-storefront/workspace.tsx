@@ -8,14 +8,29 @@ import type { rpcContract, Selection } from './connection-contract';
 import type { StorePage, TemplateResult } from './storefront-data';
 import { storefrontUrl } from './storefront-data';
 import { conversationRequest } from './conversation';
+import { DraftPanel } from './draft-panel';
+import { WarehousePanel } from './warehouse-panel';
+import { HeatmapPanel } from './heatmap-panel';
 
 export function StorefrontWorkspace() {
   const [selection, setSelection] = useState<Selection | null>(null);
   return <div className="uc-workspace-body">
     <ConnectionPanel onSelection={setSelection} />
-    {selection ? <PageWorkspace key={`${selection.profileId}:${selection.storefront.id}:${selection.verifiedAt}`} selection={selection} /> :
+    {selection ? <ConnectedWorkspace key={`${selection.profileId}:${selection.storefront.id}:${selection.verifiedAt}`} selection={selection} /> :
       <section className="uc-workspace-welcome"><p className="uc-eyebrow">A WORKSPACE FOR YOUR STORE</p><h1>Start with a real page.</h1><p>Connect UltraCart and choose a storefront. Then browse your pages, inspect their templates, and bring the right context into an agent conversation.</p><div className="uc-workspace-steps"><span>01 · Choose store</span><span>02 · Explore pages</span><span>03 · Work with your agent</span></div></section>}
   </div>;
+}
+
+function ConnectedWorkspace({ selection }: { selection: Selection }) {
+  const [view, setView] = useState<'pages' | 'warehouse'>('pages');
+  return <>
+    <nav className="uc-store-views" aria-label="Store workspace">
+      <button type="button" aria-pressed={view === 'pages'} onClick={() => setView('pages')}>Pages & changes</button>
+      <button type="button" aria-pressed={view === 'warehouse'} onClick={() => setView('warehouse')}>Data warehouse</button>
+    </nav>
+    <div hidden={view !== 'pages'}><PageWorkspace selection={selection} /></div>
+    {view === 'warehouse' && <WarehousePanel selection={selection} />}
+  </>;
 }
 
 function PageWorkspace({ selection }: { selection: Selection }) {
@@ -37,7 +52,7 @@ function PageWorkspace({ selection }: { selection: Selection }) {
   const [templates, setTemplates] = useState<TemplateResult | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'page' | 'agent'>('page');
+  const [mode, setMode] = useState<'page' | 'draft' | 'heatmap' | 'agent'>('page');
   const [intent, setIntent] = useState('Help me understand this page and suggest useful improvements. Inspect first.');
   const [sessions, setSessions] = useState<Record<string, string>>({});
   const loadedRef = useRef(false);
@@ -101,8 +116,7 @@ function PageWorkspace({ selection }: { selection: Selection }) {
   }
 
   return <section className="uc-page-workspace" aria-label="Live storefront workspace">
-    <header className="uc-workspace-title"><div><p className="uc-eyebrow">LIVE STORE EXPLORER</p><h1>Your pages. Your next idea.</h1><p>Explore the store, then give your agent a precise starting point.</p></div><Button variant="outline" disabled={!!busy} onClick={loadPages}>{busy === 'Loading pages' ? 'Loading…' : loaded ? 'Refresh pages' : 'Load pages'}</Button></header>
-    <div className="uc-store-stats"><span><strong>{loaded ? pages.length.toLocaleString() : '—'}</strong> catalog pages</span><span><strong>{loaded ? new Set(pages.map(p => p.template).filter(Boolean)).size : '—'}</strong> page templates</span><span><strong>{loaded ? pages.filter(p => p.visible === null).length : '—'}</strong> visibility unreported</span><span>{fetchedAt ? `Read at ${new Date(fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Read-only discovery'}</span></div>
+    <div className="uc-store-stats"><span><strong>{loaded ? pages.length.toLocaleString() : '—'}</strong> catalog pages</span><span><strong>{loaded ? new Set(pages.map(p => p.template).filter(Boolean)).size : '—'}</strong> page templates</span><span><strong>{loaded ? pages.filter(p => p.visible === null).length : '—'}</strong> visibility unreported</span><span className="uc-read-time">{fetchedAt ? `Read at ${new Date(fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Read-only discovery'}</span><Button size="sm" variant="outline" disabled={!!busy} onClick={loadPages}>{busy === 'Loading pages' ? 'Loading…' : loaded ? 'Refresh pages' : 'Load pages'}</Button></div>
     {error && <p className="uc-workspace-error" role="alert">{error}</p>}
     {pages.some(p => p.catalogCopies > 1) && <p className="uc-catalog-warning">The catalog has duplicate records for {pages.filter(p => p.catalogCopies > 1).length} page path. Duplicate entries are marked below. Select one to read its current settings directly.</p>}
     <div className="uc-live-layout">
@@ -120,7 +134,7 @@ function PageWorkspace({ selection }: { selection: Selection }) {
       </aside>
       <div className="uc-page-main">{page ? <>
         <header className="uc-page-header"><div><p className="uc-eyebrow">{page.path === '/' ? 'HOME PAGE' : 'SELECTED PAGE'}</p><h2>{page.title}</h2><code>{page.path}</code></div><Button variant="outline" disabled={!url} onClick={() => {if (url && !navigate.openUrl(url)) setError('BB could not open this page.');}}>Open live page ↗</Button></header>
-        <div className="uc-page-tabs" role="group" aria-label="Page view"><button aria-pressed={mode === 'page'} onClick={() => setMode('page')}>Page details</button><button aria-pressed={mode === 'agent'} onClick={() => setMode('agent')}>Work with agent{threadId ? ' · Active chat' : ''}</button><span role="status">{busy || (pageFresh ? 'Fresh page settings' : 'From catalog listing')}</span></div>
+        <div className="uc-page-tabs" role="group" aria-label="Page view"><button aria-pressed={mode === 'page'} onClick={() => setMode('page')}>Page details</button><button aria-pressed={mode === 'draft'} onClick={() => setMode('draft')}>Draft & review</button><button aria-pressed={mode === 'heatmap'} onClick={() => setMode('heatmap')}>Heatmaps</button><button aria-pressed={mode === 'agent'} onClick={() => setMode('agent')}>Work with agent{threadId ? ' · Active chat' : ''}</button><span role="status">{busy || (pageFresh ? 'Fresh page settings' : 'From catalog listing')}</span></div>
         {mode === 'page' ? <div className="uc-page-details">
           <div className="uc-page-flags"><span>{page.visible === null ? 'Visibility not reported' : page.visible ? 'Visibility setting: visible' : 'Visibility setting: hidden'}</span><span>{page.search === 'indexable' ? 'Search indexable' : page.search === 'noindex' ? 'Excluded from search' : 'Search status unknown'}</span><span>{page.children} subpages</span><span>{page.items} items</span></div>
           <div className="uc-page-description"><h3>Page description</h3><p>{page.description || 'No description is reported for this page.'}</p></div>
@@ -133,12 +147,12 @@ function PageWorkspace({ selection }: { selection: Selection }) {
             <button disabled={!!busy} onClick={() => ask('Inspect this page and explain how it is built. Identify its templates and shared dependencies. Read-only discovery.')}><strong>Understand this page</strong><span>Find its structure and dependencies.</span><b>↗</b></button>
             <button disabled={!!busy} onClick={() => ask('Inspect this page’s current metadata and templates. Suggest concrete improvements and explain what the toolkit can support. Do not make changes yet.')}><strong>Find improvements</strong><span>Explore useful changes with your agent.</span><b>↗</b></button>
             <button disabled={!!busy} onClick={() => ask('Help me plan a change to this page. First inspect its current settings and template, then ask what I want to change. Do not publish or edit store content yet.')}><strong>Plan a change</strong><span>Define the scope before editing.</span><b>↗</b></button>
-          </div><p className="uc-page-boundary">These controls read your store. Page settings do not confirm public availability. Editing and publishing controls are not part of this version.</p>
-        </div> : <div className="uc-agent-work"><div className="uc-agent-scope"><span className="uc-dot uc-connected-dot"/><span>Context: <strong>{selection.merchantId}</strong> · {selection.storefront.host} · <code>{page.path}</code></span>{threadId && <Button size="sm" variant="ghost" onClick={() => navigate.toThread(threadId)}>Open chat ↗</Button>}</div>
+          </div><p className="uc-page-boundary">These controls read your store. Page settings do not confirm public availability. Use Draft & review to edit supported container fields locally and check the changes.</p>
+        </div> : mode === 'draft' ? <DraftPanel key={page.path} selection={selection} path={page.path} /> : mode === 'heatmap' ? <HeatmapPanel key={page.path} selection={selection} path={page.path} /> : <div className="uc-agent-work"><div className="uc-agent-scope"><span className="uc-dot uc-connected-dot"/><span>Context: <strong>{selection.merchantId}</strong> · {selection.storefront.host} · <code>{page.path}</code></span>{threadId && <Button size="sm" variant="ghost" onClick={() => navigate.toThread(threadId)}>Open chat ↗</Button>}</div>
           {threadId ? <div className="uc-embedded-chat"><ThreadChat threadId={threadId} variant="compact" permissionPolicy="editable" /></div> : <>
             <div className="uc-agent-readiness"><strong>Choose your agent below</strong><p>UltraCart is connected. Your agent needs its own sign-in on the selected execution machine. A listed provider is not proof that it is signed in.</p>{providers.filter(p => p.id === 'codex' || p.id === 'claude-code').map(p => <p key={p.id}><b>{p.displayName}:</b> {p.strings?.signInHint || 'Use BB’s provider setup if authentication is requested.'}</p>)}</div>
             <div className="uc-native-composer"><NewThreadComposer key={`${page.path}:${intent}`} defaultProjectId={context.projectId || undefined} initialPrompt={intent} placeholder="What would you like to do with this page?" layout="document" draftKey={`storefront:${selection.profileId}:${selection.storefront.id}:${page.path}`} onSubmit={startConversation} /></div>
-            <p className="uc-page-boundary">Sending starts a BB conversation with this merchant, storefront, and page pinned as context. The agent receives three live discovery tools. Later store switches do not retarget that conversation.</p>
+            <p className="uc-page-boundary">Sending starts a BB conversation with this merchant, storefront, and page pinned as context. The agent receives live discovery and local draft tools. Local drafts can be reviewed in Draft & review. Later store switches do not retarget that conversation.</p>
           </>}
         </div>}
       </> : <div className="uc-no-page"><p className="uc-eyebrow">YOUR STORE, IN CONTEXT</p><h2>{busy ? 'Reading your pages…' : loaded ? 'Choose a page to begin' : 'Load your storefront pages'}</h2><p>Page settings, template dependencies, and agent actions will appear here.</p></div>}</div>
